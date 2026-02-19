@@ -34,7 +34,7 @@ export async function nowcastRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (request, _reply) => {
       const query = queryActiveCellsSchema.parse(request.query);
       const result = await nowcastService.getActiveCells(query);
 
@@ -72,7 +72,7 @@ export async function nowcastRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (request, _reply) => {
       const { trackId } = request.params;
       const query = queryCellTrackSchema.parse(request.query);
 
@@ -112,7 +112,7 @@ export async function nowcastRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (request, _reply) => {
       const query = queryForecastsSchema.parse(request.query);
       const result = await nowcastService.getForecasts(query);
 
@@ -149,7 +149,7 @@ export async function nowcastRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (request, _reply) => {
       const { id } = request.params;
       const forecast = await nowcastService.getForecastById(id);
 
@@ -177,7 +177,7 @@ export async function nowcastRoutes(app: FastifyInstance): Promise<void> {
         security: [{ bearerAuth: [] }],
       },
     },
-    async (request, reply) => {
+    async (_request, _reply) => {
       const summary = await nowcastService.getNowcastSummary();
 
       return {
@@ -200,7 +200,7 @@ export async function nowcastRoutes(app: FastifyInstance): Promise<void> {
         security: [{ bearerAuth: [] }],
       },
     },
-    async (request, reply) => {
+    async (_request, _reply) => {
       const trackIds = await nowcastService.getActiveTrackIds();
 
       return {

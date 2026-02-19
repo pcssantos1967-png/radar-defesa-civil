@@ -1,5 +1,5 @@
 import { prisma } from '../../config/database.js';
-import { createLogger } from '../../utils/logger.js';
+import type { ConvectiveCell, NowcastForecast } from '@prisma/client';
 import type {
   QueryActiveCellsInput,
   QueryCellTrackInput,
@@ -9,7 +9,39 @@ import type {
   NowcastSummaryResponse,
 } from './nowcast.schema.js';
 
-const logger = createLogger('nowcast-service');
+// Helper function to map cell to response
+function mapCellToResponse(cell: ConvectiveCell): ConvectiveCellResponse {
+  return {
+    id: cell.id,
+    trackId: cell.trackId,
+    detectionTime: cell.detectionTime,
+    centroidLat: Number(cell.centroidLat),
+    centroidLng: Number(cell.centroidLng),
+    maxReflectivityDbz: cell.maxReflectivityDbz ? Number(cell.maxReflectivityDbz) : null,
+    vil: cell.vil ? Number(cell.vil) : null,
+    echoTopKm: cell.echoTopKm ? Number(cell.echoTopKm) : null,
+    areaKm2: cell.areaKm2 ? Number(cell.areaKm2) : null,
+    velocityMs: cell.velocityMs ? Number(cell.velocityMs) : null,
+    directionDeg: cell.directionDeg,
+    severity: cell.severity,
+    isActive: cell.isActive,
+    metadata: cell.metadata as Record<string, unknown>,
+  };
+}
+
+// Helper function to map forecast to response
+function mapForecastToResponse(f: NowcastForecast): NowcastForecastResponse {
+  return {
+    id: f.id,
+    issueTime: f.issueTime,
+    validTime: f.validTime,
+    leadTimeMinutes: f.leadTimeMinutes,
+    forecastType: f.forecastType,
+    dataPath: f.dataPath,
+    tilePath: f.tilePath,
+    metadata: f.metadata as Record<string, unknown>,
+  };
+}
 
 /**
  * Get active convective cells
@@ -50,22 +82,7 @@ export async function getActiveCells(
   ]);
 
   return {
-    cells: cells.map((cell) => ({
-      id: cell.id,
-      trackId: cell.trackId,
-      detectionTime: cell.detectionTime,
-      centroidLat: Number(cell.centroidLat),
-      centroidLng: Number(cell.centroidLng),
-      maxReflectivityDbz: cell.maxReflectivityDbz ? Number(cell.maxReflectivityDbz) : null,
-      vil: cell.vil ? Number(cell.vil) : null,
-      echoTopKm: cell.echoTopKm ? Number(cell.echoTopKm) : null,
-      areaKm2: cell.areaKm2 ? Number(cell.areaKm2) : null,
-      velocityMs: cell.velocityMs ? Number(cell.velocityMs) : null,
-      directionDeg: cell.directionDeg,
-      severity: cell.severity,
-      isActive: cell.isActive,
-      metadata: cell.metadata as Record<string, unknown>,
-    })),
+    cells: cells.map(mapCellToResponse),
     total,
   };
 }
@@ -77,13 +94,7 @@ export async function getCellTrack(
   trackId: string,
   query: QueryCellTrackInput
 ): Promise<{ track: ConvectiveCellResponse[]; trackId: string }> {
-  const { limit, includeInactive } = query;
-
-  const where: { trackId: string; isActive?: boolean } = { trackId };
-
-  if (!includeInactive) {
-    // Only get the most recent active detection
-  }
+  const { limit } = query;
 
   const cells = await prisma.convectiveCell.findMany({
     where: { trackId },
@@ -93,22 +104,7 @@ export async function getCellTrack(
 
   return {
     trackId,
-    track: cells.map((cell) => ({
-      id: cell.id,
-      trackId: cell.trackId,
-      detectionTime: cell.detectionTime,
-      centroidLat: Number(cell.centroidLat),
-      centroidLng: Number(cell.centroidLng),
-      maxReflectivityDbz: cell.maxReflectivityDbz ? Number(cell.maxReflectivityDbz) : null,
-      vil: cell.vil ? Number(cell.vil) : null,
-      echoTopKm: cell.echoTopKm ? Number(cell.echoTopKm) : null,
-      areaKm2: cell.areaKm2 ? Number(cell.areaKm2) : null,
-      velocityMs: cell.velocityMs ? Number(cell.velocityMs) : null,
-      directionDeg: cell.directionDeg,
-      severity: cell.severity,
-      isActive: cell.isActive,
-      metadata: cell.metadata as Record<string, unknown>,
-    })),
+    track: cells.map(mapCellToResponse),
   };
 }
 
@@ -145,16 +141,7 @@ export async function getForecasts(
   ]);
 
   return {
-    forecasts: forecasts.map((f) => ({
-      id: f.id,
-      issueTime: f.issueTime,
-      validTime: f.validTime,
-      leadTimeMinutes: f.leadTimeMinutes,
-      forecastType: f.forecastType,
-      dataPath: f.dataPath,
-      tilePath: f.tilePath,
-      metadata: f.metadata as Record<string, unknown>,
-    })),
+    forecasts: forecasts.map(mapForecastToResponse),
     total,
     page,
     totalPages: Math.ceil(total / limit),
@@ -175,16 +162,7 @@ export async function getForecastById(
     return null;
   }
 
-  return {
-    id: forecast.id,
-    issueTime: forecast.issueTime,
-    validTime: forecast.validTime,
-    leadTimeMinutes: forecast.leadTimeMinutes,
-    forecastType: forecast.forecastType,
-    dataPath: forecast.dataPath,
-    tilePath: forecast.tilePath,
-    metadata: forecast.metadata as Record<string, unknown>,
-  };
+  return mapForecastToResponse(forecast);
 }
 
 /**
@@ -242,7 +220,7 @@ export async function getNowcastSummary(): Promise<NowcastSummaryResponse> {
     cellsApproaching,
     hasRainExpected,
     latestForecastTime: latestForecast?.issueTime || null,
-    forecastLeadTimes: recentForecasts.map((f) => f.leadTimeMinutes),
+    forecastLeadTimes: recentForecasts.map((f: { leadTimeMinutes: number }) => f.leadTimeMinutes),
   };
 }
 
@@ -256,5 +234,5 @@ export async function getActiveTrackIds(): Promise<string[]> {
     distinct: ['trackId'],
   });
 
-  return cells.map((c) => c.trackId);
+  return cells.map((c: { trackId: string }) => c.trackId);
 }

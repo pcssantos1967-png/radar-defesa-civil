@@ -1,9 +1,9 @@
 // Notification Service
 // Orchestrates sending notifications through multiple channels
 
-import { Queue, Worker, Job, QueueScheduler } from 'bullmq';
+import { Queue, Worker, Job } from 'bullmq';
 import { prisma } from '../../../config/database.js';
-import { redis, cache } from '../../../config/redis.js';
+import { bullmqRedis, cache } from '../../../config/redis.js';
 import { createLogger } from '../../../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -38,7 +38,7 @@ const RATE_LIMIT_PREFIX = 'notification:rate:';
 
 // Create queue
 export const notificationQueue = new Queue<NotificationJobData>(QUEUE_NAME, {
-  connection: redis,
+  connection: bullmqRedis,
   defaultJobOptions: {
     removeOnComplete: 500,
     removeOnFail: 1000,
@@ -48,11 +48,6 @@ export const notificationQueue = new Queue<NotificationJobData>(QUEUE_NAME, {
       delay: 10000,
     },
   },
-});
-
-// Create scheduler
-export const notificationScheduler = new QueueScheduler(QUEUE_NAME, {
-  connection: redis,
 });
 
 // Create worker
@@ -101,7 +96,7 @@ export const notificationWorker = new Worker<NotificationJobData>(
     return result;
   },
   {
-    connection: redis,
+    connection: bullmqRedis,
     concurrency: 10,
     limiter: {
       max: 50,

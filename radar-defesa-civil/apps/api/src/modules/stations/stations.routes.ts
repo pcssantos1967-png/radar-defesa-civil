@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { authenticate, authorize, Roles } from '../../middleware/auth.js';
+import { authenticate, authorize, Roles, JwtPayload } from '../../middleware/auth.js';
 import { NotFoundError } from '../../utils/errors.js';
 import { prisma } from '../../config/database.js';
 import {
@@ -37,7 +37,7 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (request, _reply) => {
       const query = queryStationsSchema.parse(request.query);
       const result = await stationsService.findMany(query);
 
@@ -73,7 +73,7 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (request, _reply) => {
       const { municipalityId } = request.query as { municipalityId?: string };
       const stations = await stationsService.getStationsForMap(municipalityId);
 
@@ -97,7 +97,7 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
         security: [{ bearerAuth: [] }],
       },
     },
-    async (request, reply) => {
+    async (_request, _reply) => {
       const sources = await stationsService.getSources();
 
       return {
@@ -127,7 +127,7 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (request, _reply) => {
       const { id } = request.params;
       const station = await stationsService.findById(id);
 
@@ -171,7 +171,7 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (request, _reply) => {
       const { id } = request.params;
 
       // Verify station exists
@@ -295,13 +295,14 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
       const station = await stationsService.create(input);
 
       // Audit log
+      const user = request.user as JwtPayload;
       await prisma.auditLog.create({
         data: {
-          userId: request.user!.userId,
+          userId: user.userId,
           action: 'CREATE_STATION',
           entityType: 'station',
           entityId: station.id,
-          newValues: input,
+          newValues: JSON.parse(JSON.stringify(input)),
         },
       });
 
@@ -346,7 +347,7 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (request, _reply) => {
       const { id } = request.params;
 
       // Verify station exists
@@ -362,9 +363,10 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
       const station = await stationsService.update(id, input);
 
       // Audit log
+      const user = request.user as JwtPayload;
       await prisma.auditLog.create({
         data: {
-          userId: request.user!.userId,
+          userId: user.userId,
           action: 'UPDATE_STATION',
           entityType: 'station',
           entityId: id,
@@ -373,7 +375,7 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
             source: existing.source,
             status: existing.status,
           },
-          newValues: input,
+          newValues: JSON.parse(JSON.stringify(input)),
         },
       });
 
@@ -404,7 +406,7 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (request, _reply) => {
       const { id } = request.params;
 
       // Verify station exists
@@ -421,9 +423,10 @@ export async function stationsRoutes(app: FastifyInstance): Promise<void> {
       });
 
       // Audit log
+      const user = request.user as JwtPayload;
       await prisma.auditLog.create({
         data: {
-          userId: request.user!.userId,
+          userId: user.userId,
           action: 'DELETE_STATION',
           entityType: 'station',
           entityId: id,

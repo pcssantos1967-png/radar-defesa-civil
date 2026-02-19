@@ -1,9 +1,9 @@
 // Alert Escalation Background Job
 // Checks for unacknowledged alerts and escalates them
 
-import { Queue, Worker, Job, QueueScheduler } from 'bullmq';
+import { Queue, Worker, Job } from 'bullmq';
 import { prisma } from '../config/database.js';
-import { redis } from '../config/redis.js';
+import { bullmqRedis } from '../config/redis.js';
 import { getWebSocketServer } from '../websocket/gateway.js';
 import { sendAlertNotifications } from '../modules/alerts/notifications/index.js';
 import { createLogger } from '../utils/logger.js';
@@ -21,17 +21,12 @@ interface EscalationJobData {
 
 // Create queue
 export const escalationQueue = new Queue<EscalationJobData>(QUEUE_NAME, {
-  connection: redis,
+  connection: bullmqRedis,
   defaultJobOptions: {
     removeOnComplete: 50,
     removeOnFail: 200,
     attempts: 2,
   },
-});
-
-// Create scheduler
-export const escalationScheduler = new QueueScheduler(QUEUE_NAME, {
-  connection: redis,
 });
 
 // Process escalation jobs
@@ -49,7 +44,7 @@ export const escalationWorker = new Worker<EscalationJobData>(
     }
   },
   {
-    connection: redis,
+    connection: bullmqRedis,
     concurrency: 3,
   }
 );

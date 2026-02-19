@@ -1,9 +1,9 @@
 // Alert Expiration Background Job
 // Automatically expires alerts past their expiresAt timestamp
 
-import { Queue, Worker, Job, QueueScheduler } from 'bullmq';
+import { Queue, Worker, Job } from 'bullmq';
 import { prisma } from '../config/database.js';
-import { redis } from '../config/redis.js';
+import { bullmqRedis } from '../config/redis.js';
 import { getWebSocketServer } from '../websocket/gateway.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -17,17 +17,12 @@ interface ExpirationJobData {
 
 // Create queue
 export const expirationQueue = new Queue<ExpirationJobData>(QUEUE_NAME, {
-  connection: redis,
+  connection: bullmqRedis,
   defaultJobOptions: {
     removeOnComplete: 50,
     removeOnFail: 100,
     attempts: 2,
   },
-});
-
-// Create scheduler
-export const expirationScheduler = new QueueScheduler(QUEUE_NAME, {
-  connection: redis,
 });
 
 // Process expiration jobs
@@ -45,7 +40,7 @@ export const expirationWorker = new Worker<ExpirationJobData>(
     }
   },
   {
-    connection: redis,
+    connection: bullmqRedis,
     concurrency: 3,
   }
 );

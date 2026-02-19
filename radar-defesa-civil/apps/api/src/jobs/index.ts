@@ -3,7 +3,6 @@
 
 export {
   ruleEvaluationQueue,
-  ruleEvaluationScheduler,
   ruleEvaluationWorker,
   scheduleAllMunicipalityEvaluations,
   scheduleMunicipalityEvaluation,
@@ -13,7 +12,6 @@ export {
 
 export {
   escalationQueue,
-  escalationScheduler,
   escalationWorker,
   scheduleAlertEscalation,
   setupPeriodicEscalationCheck,
@@ -22,7 +20,6 @@ export {
 
 export {
   expirationQueue,
-  expirationScheduler,
   expirationWorker,
   scheduleAlertExpiration,
   setupPeriodicExpirationCheck,

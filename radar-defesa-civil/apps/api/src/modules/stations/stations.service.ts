@@ -244,7 +244,7 @@ export async function create(input: CreateStationInput): Promise<StationResponse
       elevationM: input.elevationM,
       municipalityId: input.municipalityId,
       status: input.status,
-      metadata: input.metadata,
+      metadata: input.metadata as object | undefined,
     },
     include: {
       municipality: {
@@ -254,6 +254,11 @@ export async function create(input: CreateStationInput): Promise<StationResponse
   });
 
   logger.info('Station created', { id: station.id, code: station.code });
+
+  // Cast to access included municipality
+  const stationWithMunicipality = station as typeof station & {
+    municipality: { id: string; name: string; ibgeCode: string } | null;
+  };
 
   return {
     id: station.id,
@@ -269,7 +274,7 @@ export async function create(input: CreateStationInput): Promise<StationResponse
     metadata: station.metadata as Record<string, unknown>,
     createdAt: station.createdAt,
     updatedAt: station.updatedAt,
-    municipality: station.municipality || undefined,
+    municipality: stationWithMunicipality.municipality || undefined,
   };
 }
 
@@ -291,7 +296,7 @@ export async function update(
       elevationM: input.elevationM,
       municipalityId: input.municipalityId,
       status: input.status,
-      metadata: input.metadata,
+      metadata: input.metadata as object | undefined,
     },
     include: {
       municipality: {
@@ -301,6 +306,11 @@ export async function update(
   });
 
   logger.info('Station updated', { id: station.id });
+
+  // Cast to access included municipality
+  const stationWithMunicipality = station as typeof station & {
+    municipality: { id: string; name: string; ibgeCode: string } | null;
+  };
 
   return {
     id: station.id,
@@ -316,7 +326,7 @@ export async function update(
     metadata: station.metadata as Record<string, unknown>,
     createdAt: station.createdAt,
     updatedAt: station.updatedAt,
-    municipality: station.municipality || undefined,
+    municipality: stationWithMunicipality.municipality || undefined,
   };
 }
 
@@ -395,5 +405,5 @@ export async function getSources(): Promise<string[]> {
     orderBy: { source: 'asc' },
   });
 
-  return sources.map((s) => s.source);
+  return sources.map((s: { source: string }) => s.source);
 }

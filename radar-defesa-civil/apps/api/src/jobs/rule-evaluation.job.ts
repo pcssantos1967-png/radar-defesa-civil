@@ -1,9 +1,9 @@
 // Rule Evaluation Background Job
 // Periodically evaluates alert rules for all municipalities
 
-import { Queue, Worker, Job, QueueScheduler } from 'bullmq';
+import { Queue, Worker, Job } from 'bullmq';
 import { prisma } from '../config/database.js';
-import { redis } from '../config/redis.js';
+import { bullmqRedis } from '../config/redis.js';
 import { ruleEngine } from '../modules/alerts/rule-engine/index.js';
 import { getWebSocketServer } from '../websocket/gateway.js';
 import { sendAlertNotifications } from '../modules/alerts/notifications/index.js';
@@ -13,7 +13,7 @@ const QUEUE_NAME = 'rule-evaluation';
 
 // Create queue
 export const ruleEvaluationQueue = new Queue<RuleEvaluationJobData>(QUEUE_NAME, {
-  connection: redis,
+  connection: bullmqRedis,
   defaultJobOptions: {
     removeOnComplete: 100,
     removeOnFail: 500,
@@ -23,11 +23,6 @@ export const ruleEvaluationQueue = new Queue<RuleEvaluationJobData>(QUEUE_NAME, 
       delay: 5000,
     },
   },
-});
-
-// Create scheduler for repeated jobs
-export const ruleEvaluationScheduler = new QueueScheduler(QUEUE_NAME, {
-  connection: redis,
 });
 
 // Process jobs
@@ -115,7 +110,7 @@ export const ruleEvaluationWorker = new Worker<RuleEvaluationJobData>(
     }
   },
   {
-    connection: redis,
+    connection: bullmqRedis,
     concurrency: 5,
     limiter: {
       max: 50,

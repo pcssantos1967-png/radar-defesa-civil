@@ -9,6 +9,16 @@ export const redis = new Redis(env.REDIS_URL, {
   },
 });
 
+// Separate connection for BullMQ (requires maxRetriesPerRequest: null)
+export const bullmqRedis = new Redis(env.REDIS_URL, {
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+  retryStrategy(times) {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  },
+});
+
 redis.on('error', (error) => {
   console.error('Redis error:', error);
 });

@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 5%;
+    --foreground: 0 0% 100%;
+    --card: 222 47% 8%;
+    --card-foreground: 0 0% 100%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 187 100% 50%;
+    --primary-foreground: 222 47% 5%;
+    --secondary: 199 89% 48%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 217 19% 27%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 187 100% 50%;
+    --accent-foreground: 222 47% 5%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 47% 15%;
+    --input: 222 47% 15%;
+    --ring: 187 100% 50%;
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-text antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-background-secondary border border-border rounded-lg p-4;
+  }
+
+  .card-elevated {
+    @apply bg-background-elevated border border-border rounded-lg p-4 shadow-lg;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-background px-4 py-2 rounded-md font-medium
+           hover:bg-accent/90 transition-colors duration-200
+           focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2
+           focus:ring-offset-background;
+  }
+
+  .btn-secondary {
+    @apply bg-background-tertiary text-text px-4 py-2 rounded-md font-medium
+           border border-border hover:border-border-hover transition-colors duration-200
+           focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2
+           focus:ring-offset-background;
+  }
+
+  .btn-ghost {
+    @apply text-text-secondary px-4 py-2 rounded-md font-medium
+           hover:bg-background-tertiary hover:text-text transition-colors duration-200
+           focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2
+           focus:ring-offset-background;
+  }
+
+  .input {
+    @apply bg-background-tertiary border border-border rounded-md px-3 py-2
+           text-text placeholder:text-text-muted
+           focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent
+           transition-colors duration-200;
+  }
+
+  .severity-observation {
+    @apply bg-severity-observation text-white;
+  }
+
+  .severity-attention {
+    @apply bg-severity-attention text-black;
+  }
+
+  .severity-alert {
+    @apply bg-severity-alert text-white;
+  }
+
+  .severity-max-alert {
+    @apply bg-severity-max-alert text-white animate-pulse;
+  }
+}
+
+/* MapLibre GL overrides */
+.maplibregl-map {
+  font-family: inherit;
+}
+
+.maplibregl-ctrl-group {
+  @apply bg-background-secondary border-border !important;
+}
+
+.maplibregl-ctrl-group button {
+  @apply text-text hover:bg-background-tertiary !important;
+}
+
+.maplibregl-popup-content {
+  @apply bg-background-secondary border border-border text-text rounded-lg shadow-lg !important;
+}
+
+.maplibregl-popup-tip {
+  @apply border-t-background-secondary !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-background-secondary;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded-full hover:bg-border-hover;
+}
+
+/* Custom utilities */
+@layer utilities {
+  .glow {
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+  }
+
+  .glow-strong {
+    box-shadow: 0 0 30px rgba(0, 229, 255, 0.5);
+  }
+
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent to-accent-secondary bg-clip-text text-transparent;
+  }
+}

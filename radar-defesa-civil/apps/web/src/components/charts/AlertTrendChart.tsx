@@ -45,6 +45,22 @@ const SEVERITY_LABELS = {
   total: 'Total',
 };
 
+const formatPeriod = (period: string, interval: string) => {
+  const date = parseISO(period);
+  switch (interval) {
+    case 'hour':
+      return format(date, 'dd/MM HH:mm', { locale: ptBR });
+    case 'day':
+      return format(date, 'dd/MM', { locale: ptBR });
+    case 'week':
+      return format(date, "'Sem' w", { locale: ptBR });
+    case 'month':
+      return format(date, 'MMM/yy', { locale: ptBR });
+    default:
+      return format(date, 'dd/MM', { locale: ptBR });
+  }
+};
+
 export function AlertTrendChart({
   data,
   interval = 'day',
@@ -56,22 +72,6 @@ export function AlertTrendChart({
       formattedPeriod: formatPeriod(item.period, interval),
     }));
   }, [data, interval]);
-
-  const formatPeriod = (period: string, interval: string) => {
-    const date = parseISO(period);
-    switch (interval) {
-      case 'hour':
-        return format(date, 'dd/MM HH:mm', { locale: ptBR });
-      case 'day':
-        return format(date, 'dd/MM', { locale: ptBR });
-      case 'week':
-        return format(date, "'Sem' w", { locale: ptBR });
-      case 'month':
-        return format(date, 'MMM/yy', { locale: ptBR });
-      default:
-        return format(date, 'dd/MM', { locale: ptBR });
-    }
-  };
 
   const CustomTooltip = ({ active, payload, label }: {
     active?: boolean;

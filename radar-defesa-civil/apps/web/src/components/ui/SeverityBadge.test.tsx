@@ -32,7 +32,7 @@ describe('SeverityBadge', () => {
   it('applies correct color for max_alert', () => {
     render(<SeverityBadge severity="max_alert" />);
     const badge = screen.getByText('Alerta Máximo').closest('span');
-    expect(badge).toHaveClass('bg-severity-max_alert');
+    expect(badge).toHaveClass('bg-severity-max-alert');
   });
 
   it('applies small size when size="sm"', () => {

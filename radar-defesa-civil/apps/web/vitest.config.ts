@@ -20,7 +20,7 @@ export default defineConfig({
         '**/*.spec.{ts,tsx}',
       ],
     },
-    setupFiles: ['./src/test/setup.ts'],
+    setupFiles: ['./src/test/setup.tsx'],
   },
   resolve: {
     alias: {

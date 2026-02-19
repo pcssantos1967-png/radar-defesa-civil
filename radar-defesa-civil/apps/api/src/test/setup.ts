@@ -22,6 +22,7 @@ vi.mock('../config/database.js', () => ({
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       count: vi.fn(),
     },
     alertRule: {

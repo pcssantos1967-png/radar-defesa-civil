@@ -17,6 +17,8 @@ import { alertsRoutes } from './modules/alerts/alerts.routes.js';
 import { municipalitiesRoutes } from './modules/municipalities/municipalities.routes.js';
 import { statisticsRoutes } from './modules/statistics/statistics.routes.js';
 import { reportsRoutes } from './modules/reports/reports.routes.js';
+import { nowcastRoutes } from './modules/nowcast/index.js';
+import { stationsRoutes } from './modules/stations/index.js';
 import { createLogger } from './utils/logger.js';
 import { initializeJobs, shutdownJobs } from './jobs/index.js';
 import { startRadarListener, stopRadarListener } from './services/radar-listener.service.js';
@@ -104,6 +106,8 @@ async function buildApp() {
       await api.register(municipalitiesRoutes, { prefix: '/municipalities' });
       await api.register(statisticsRoutes, { prefix: '/statistics' });
       await api.register(reportsRoutes, { prefix: '/reports' });
+      await api.register(nowcastRoutes, { prefix: '/nowcast' });
+      await api.register(stationsRoutes, { prefix: '/stations' });
     },
     { prefix: '/api/v1' }
   );

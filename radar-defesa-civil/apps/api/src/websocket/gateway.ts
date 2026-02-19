@@ -125,6 +125,41 @@ export class WebSocketGateway {
         }
       });
 
+      // Subscribe to nowcast updates
+      socket.on('subscribe:nowcast', () => {
+        const channel = 'nowcast:all';
+        const client = this.clients.get(socket.id);
+        if (client) {
+          client.subscriptions.add(channel);
+          socket.join(channel);
+          logger.debug({ socketId: socket.id, channel }, 'Subscribed to nowcast');
+        }
+      });
+
+      // Subscribe to convective cell updates
+      socket.on('subscribe:cells', (radarId?: string) => {
+        const channel = radarId ? `cells:${radarId}` : 'cells:all';
+        const client = this.clients.get(socket.id);
+        if (client) {
+          client.subscriptions.add(channel);
+          socket.join(channel);
+          logger.debug({ socketId: socket.id, channel }, 'Subscribed to cells');
+        }
+      });
+
+      // Subscribe to specific cell track
+      socket.on('subscribe:cell-track', (trackId: string) => {
+        if (trackId) {
+          const channel = `cell-track:${trackId}`;
+          const client = this.clients.get(socket.id);
+          if (client) {
+            client.subscriptions.add(channel);
+            socket.join(channel);
+            logger.debug({ socketId: socket.id, channel }, 'Subscribed to cell track');
+          }
+        }
+      });
+
       // Unsubscribe
       socket.on('unsubscribe', (channel: string) => {
         const client = this.clients.get(socket.id);
@@ -154,7 +189,9 @@ export class WebSocketGateway {
       'alert:end',
       'precipitation:update',
       'nowcast:update',
-      'lightning:strike'
+      'lightning:strike',
+      'cells:update',
+      'cell:approach'
     );
 
     subscriber.on('message', (channel, message) => {
@@ -188,6 +225,12 @@ export class WebSocketGateway {
         break;
       case 'lightning:strike':
         this.broadcastLightning(data);
+        break;
+      case 'cells:update':
+        this.broadcastCellsUpdate(data);
+        break;
+      case 'cell:approach':
+        this.broadcastCellApproach(data);
         break;
     }
   }
@@ -257,6 +300,57 @@ export class WebSocketGateway {
     this.io.emit('lightning:strike', data);
   }
 
+  private broadcastCellsUpdate(data: unknown) {
+    const cellData = data as { radarId?: string; cells?: unknown[] };
+
+    // Broadcast to radar-specific room
+    if (cellData.radarId) {
+      this.io.to(`cells:${cellData.radarId}`).emit('cells:update', data);
+    }
+
+    // Broadcast to all cells subscribers
+    this.io.to('cells:all').emit('cells:update', data);
+
+    // Also send to nowcast subscribers as cells are part of nowcast data
+    this.io.to('nowcast:all').emit('cells:update', data);
+
+    // Broadcast to individual cell track rooms
+    if (cellData.cells && Array.isArray(cellData.cells)) {
+      for (const cell of cellData.cells) {
+        const cellInfo = cell as { track_id?: string };
+        if (cellInfo.track_id) {
+          this.io.to(`cell-track:${cellInfo.track_id}`).emit('cell:position', cell);
+        }
+      }
+    }
+  }
+
+  private broadcastCellApproach(data: unknown) {
+    const approachData = data as {
+      municipalityId?: string;
+      consortiumId?: string;
+      severity?: string;
+    };
+
+    // Broadcast to municipality room
+    if (approachData.municipalityId) {
+      this.io.to(`municipality:${approachData.municipalityId}`).emit('cell:approach', data);
+    }
+
+    // Broadcast to consortium room
+    if (approachData.consortiumId) {
+      this.io.to(`consortium:${approachData.consortiumId}`).emit('cell:approach', data);
+    }
+
+    // Broadcast to severity rooms for severe cells
+    if (approachData.severity === 'severe' || approachData.severity === 'strong') {
+      this.io.to('alerts:critical').emit('cell:approach', data);
+    }
+
+    // Broadcast to all cells subscribers
+    this.io.to('cells:all').emit('cell:approach', data);
+  }
+
   // Public methods for emitting events from API
   public emitRadarUpdate(radarId: string, data: object) {
     redis.publish('radar:update', JSON.stringify({ radarId, ...data }));
@@ -268,6 +362,40 @@ export class WebSocketGateway {
 
   public emitPrecipitation(municipalityId: string, data: object) {
     redis.publish('precipitation:update', JSON.stringify({ municipalityId, ...data }));
+  }
+
+  public emitCellsUpdate(radarId: string, cells: object[]) {
+    redis.publish('cells:update', JSON.stringify({
+      radarId,
+      cells,
+      timestamp: new Date().toISOString(),
+    }));
+  }
+
+  public emitCellApproach(data: {
+    municipalityId: string;
+    cellTrackId: string;
+    arrivalMinutes: number;
+    severity: string;
+    maxDbz?: number;
+    velocity?: number;
+    direction?: number;
+  }) {
+    redis.publish('cell:approach', JSON.stringify({
+      ...data,
+      timestamp: new Date().toISOString(),
+    }));
+  }
+
+  public emitNowcastUpdate(radarId: string, data: {
+    issueTime: string;
+    leadTimes: number[];
+    tilePath?: string;
+  }) {
+    redis.publish('nowcast:update', JSON.stringify({
+      radarId,
+      ...data,
+    }));
   }
 }
 

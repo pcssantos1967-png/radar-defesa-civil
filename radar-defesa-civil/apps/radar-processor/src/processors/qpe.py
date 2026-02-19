@@ -6,10 +6,120 @@ Converts radar reflectivity to precipitation rates using Z-R relationships.
 
 import numpy as np
 import xarray as xr
-from typing import Optional
+from typing import Optional, Tuple
+from scipy.interpolate import griddata
 import structlog
 
 logger = structlog.get_logger()
+
+
+def polar_to_cartesian_grid(
+    data: np.ndarray,
+    radar_lat: float,
+    radar_lon: float,
+    azimuths: np.ndarray,
+    ranges: np.ndarray,
+    grid_resolution_km: float = 1.0,
+    grid_size: int = 500,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Convert polar radar data to a Cartesian lat/lon grid.
+
+    Args:
+        data: 2D array of radar data in polar coordinates (azimuth x range)
+        radar_lat: Radar latitude in degrees
+        radar_lon: Radar longitude in degrees
+        azimuths: Array of azimuth angles in degrees (0-360)
+        ranges: Array of range values in km
+        grid_resolution_km: Output grid resolution in km
+        grid_size: Number of grid points in each dimension
+
+    Returns:
+        Tuple of (gridded_data, lat_grid, lon_grid)
+    """
+    # Convert degrees to radians
+    az_rad = np.radians(azimuths)
+
+    # Create meshgrid of polar coordinates
+    az_mesh, range_mesh = np.meshgrid(az_rad, ranges, indexing='ij')
+
+    # Convert polar to local Cartesian (km)
+    # Azimuth 0 = North, increases clockwise
+    x_km = range_mesh * np.sin(az_mesh)
+    y_km = range_mesh * np.cos(az_mesh)
+
+    # Convert km offset to lat/lon offset
+    # 1 degree latitude ≈ 111 km
+    # 1 degree longitude ≈ 111 * cos(lat) km
+    lat_offset = y_km / 111.0
+    lon_offset = x_km / (111.0 * np.cos(np.radians(radar_lat)))
+
+    # Calculate actual lat/lon for each polar point
+    polar_lats = radar_lat + lat_offset
+    polar_lons = radar_lon + lon_offset
+
+    # Create output Cartesian grid
+    grid_extent_km = grid_size * grid_resolution_km / 2
+    lat_extent = grid_extent_km / 111.0
+    lon_extent = grid_extent_km / (111.0 * np.cos(np.radians(radar_lat)))
+
+    lat_grid = np.linspace(
+        radar_lat - lat_extent,
+        radar_lat + lat_extent,
+        grid_size
+    )
+    lon_grid = np.linspace(
+        radar_lon - lon_extent,
+        radar_lon + lon_extent,
+        grid_size
+    )
+
+    # Create meshgrid for output
+    lon_mesh, lat_mesh = np.meshgrid(lon_grid, lat_grid)
+
+    # Flatten polar coordinates and data for interpolation
+    polar_points = np.column_stack([
+        polar_lons.flatten(),
+        polar_lats.flatten()
+    ])
+    polar_values = data.flatten()
+
+    # Remove NaN values for interpolation
+    valid_mask = ~np.isnan(polar_values)
+    if np.sum(valid_mask) < 10:
+        logger.warning("Insufficient valid data points for interpolation")
+        return np.full((grid_size, grid_size), np.nan), lat_grid, lon_grid
+
+    polar_points_valid = polar_points[valid_mask]
+    polar_values_valid = polar_values[valid_mask]
+
+    # Interpolate to Cartesian grid
+    grid_points = np.column_stack([
+        lon_mesh.flatten(),
+        lat_mesh.flatten()
+    ])
+
+    try:
+        gridded_values = griddata(
+            polar_points_valid,
+            polar_values_valid,
+            grid_points,
+            method='linear',
+            fill_value=np.nan
+        )
+        gridded_data = gridded_values.reshape(grid_size, grid_size)
+    except Exception as e:
+        logger.error("Interpolation failed", error=str(e))
+        gridded_data = np.full((grid_size, grid_size), np.nan)
+
+    logger.info(
+        "Polar to Cartesian conversion complete",
+        input_shape=data.shape,
+        output_shape=gridded_data.shape,
+        valid_points=np.sum(~np.isnan(gridded_data)),
+    )
+
+    return gridded_data, lat_grid, lon_grid
 
 
 class PrecipitationEstimator:
@@ -129,6 +239,10 @@ def accumulate_precipitation(
 def create_qpe_product(
     data: xr.Dataset,
     estimator: Optional[PrecipitationEstimator] = None,
+    radar_lat: Optional[float] = None,
+    radar_lon: Optional[float] = None,
+    grid_resolution_km: float = 1.0,
+    grid_size: int = 500,
 ) -> xr.Dataset:
     """
     Create a QPE product from radar data.
@@ -139,6 +253,10 @@ def create_qpe_product(
     Args:
         data: xarray Dataset with reflectivity
         estimator: PrecipitationEstimator instance
+        radar_lat: Radar latitude (extracted from data if not provided)
+        radar_lon: Radar longitude (extracted from data if not provided)
+        grid_resolution_km: Output grid resolution in km
+        grid_size: Number of grid points in each dimension
 
     Returns:
         QPE Dataset on Cartesian grid
@@ -149,7 +267,87 @@ def create_qpe_product(
     # Estimate precipitation
     result = estimator.estimate(data)
 
-    # TODO: Implement polar to Cartesian conversion
-    # For now, return polar coordinates
+    # Extract radar location from dataset attributes if not provided
+    if radar_lat is None:
+        radar_lat = float(data.attrs.get("latitude", data.attrs.get("radar_lat", -23.19)))
+    if radar_lon is None:
+        radar_lon = float(data.attrs.get("longitude", data.attrs.get("radar_lon", -45.89)))
 
+    # Check if data is in polar coordinates
+    if "azimuth" in result.dims and "range" in result.dims:
+        # Extract coordinate arrays
+        azimuths = result.coords.get("azimuth", np.linspace(0, 360, result.dims["azimuth"]))
+        ranges = result.coords.get("range", np.linspace(0, 250, result.dims["range"]))
+
+        if isinstance(azimuths, xr.DataArray):
+            azimuths = azimuths.values
+        if isinstance(ranges, xr.DataArray):
+            ranges = ranges.values
+
+        # Convert precipitation rate to Cartesian grid
+        if "precipitation_rate" in result:
+            precip_data = result["precipitation_rate"].values
+
+            # Handle multiple elevations - use first or mean
+            if len(precip_data.shape) == 3:
+                precip_data = np.nanmean(precip_data, axis=0)
+
+            gridded_precip, lat_grid, lon_grid = polar_to_cartesian_grid(
+                precip_data,
+                radar_lat,
+                radar_lon,
+                azimuths,
+                ranges,
+                grid_resolution_km=grid_resolution_km,
+                grid_size=grid_size,
+            )
+
+            # Create new xarray Dataset with Cartesian coordinates
+            cartesian_result = xr.Dataset(
+                {
+                    "precipitation_rate": (["lat", "lon"], gridded_precip),
+                },
+                coords={
+                    "lat": lat_grid,
+                    "lon": lon_grid,
+                },
+                attrs={
+                    **result.attrs,
+                    "radar_lat": radar_lat,
+                    "radar_lon": radar_lon,
+                    "grid_resolution_km": grid_resolution_km,
+                    "coordinate_system": "cartesian",
+                },
+            )
+
+            # Copy precipitation attributes
+            cartesian_result["precipitation_rate"].attrs = result["precipitation_rate"].attrs
+
+            # Also convert reflectivity if present
+            if "reflectivity" in result:
+                refl_data = result["reflectivity"].values
+                if len(refl_data.shape) == 3:
+                    refl_data = np.nanmax(refl_data, axis=0)
+
+                gridded_refl, _, _ = polar_to_cartesian_grid(
+                    refl_data,
+                    radar_lat,
+                    radar_lon,
+                    azimuths,
+                    ranges,
+                    grid_resolution_km=grid_resolution_km,
+                    grid_size=grid_size,
+                )
+                cartesian_result["reflectivity"] = (["lat", "lon"], gridded_refl)
+                cartesian_result["reflectivity"].attrs = result["reflectivity"].attrs
+
+            logger.info(
+                "QPE product created on Cartesian grid",
+                grid_size=grid_size,
+                resolution_km=grid_resolution_km,
+            )
+
+            return cartesian_result
+
+    # Return original result if not polar or conversion not possible
     return result

@@ -171,4 +171,77 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       return { success: true, data: { user } };
     }
   );
+
+  // Update current user profile
+  app.put<{
+    Body: {
+      name?: string;
+      phone?: string;
+      avatarUrl?: string;
+      notificationPreferences?: {
+        email?: boolean;
+        sms?: boolean;
+        whatsapp?: boolean;
+        severityFilter?: string[];
+      };
+    };
+  }>(
+    '/me',
+    {
+      preHandler: [authenticate],
+      schema: {
+        description: 'Update current user profile',
+        tags: ['auth'],
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', minLength: 2 },
+            phone: { type: 'string' },
+            avatarUrl: { type: 'string' },
+            notificationPreferences: {
+              type: 'object',
+              properties: {
+                email: { type: 'boolean' },
+                sms: { type: 'boolean' },
+                whatsapp: { type: 'boolean' },
+                severityFilter: { type: 'array', items: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { prisma } = await import('../../config/database.js');
+      const { name, phone, avatarUrl, notificationPreferences } = request.body;
+
+      const updateData: Record<string, unknown> = {};
+      if (name !== undefined) updateData.name = name;
+      if (phone !== undefined) updateData.phone = phone;
+      if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
+      if (notificationPreferences !== undefined) {
+        updateData.notificationPreferences = notificationPreferences;
+      }
+
+      const user = await prisma.user.update({
+        where: { id: request.user!.userId },
+        data: updateData,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          consortiumId: true,
+          municipalityIds: true,
+          phone: true,
+          avatarUrl: true,
+          notificationPreferences: true,
+          lastLoginAt: true,
+        },
+      });
+
+      return { success: true, data: { user } };
+    }
+  );
 }

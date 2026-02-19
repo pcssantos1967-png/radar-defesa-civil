@@ -14,6 +14,7 @@ import {
   FileText,
   Zap,
   BarChart3,
+  UserCircle,
 } from 'lucide-react';
 
 const navItems = [
@@ -57,17 +58,22 @@ const navItems = [
     href: '/relatorios',
     icon: FileText,
   },
+  {
+    label: 'Meu Perfil',
+    href: '/perfil',
+    icon: UserCircle,
+  },
 ];
 
 const adminItems = [
   {
     label: 'Usuários',
-    href: '/admin/usuarios',
+    href: '/configuracoes/usuarios',
     icon: Users,
   },
   {
     label: 'Configurações',
-    href: '/admin/configuracoes',
+    href: '/configuracoes',
     icon: Settings,
   },
 ];
@@ -105,7 +111,7 @@ export function Sidebar() {
           </div>
           {adminItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
 
             return (
               <Link

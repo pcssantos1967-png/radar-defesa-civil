@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: radar-staging
+  labels:
+    app: radar-defesa-civil
+    environment: staging
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: radar-production
+  labels:
+    app: radar-defesa-civil
+    environment: production

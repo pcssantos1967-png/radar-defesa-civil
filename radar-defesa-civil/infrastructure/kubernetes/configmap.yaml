@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radar-config
+  labels:
+    app: radar-defesa-civil
+data:
+  NODE_ENV: "production"
+  API_PORT: "3001"
+  API_HOST: "0.0.0.0"
+  LOG_LEVEL: "info"
+  RADAR_SCAN_INTERVAL: "300"
+  RADAR_DATA_PATH: "/data/radar"
+  RADAR_TILES_PATH: "/data/tiles"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: radar-secrets
+  labels:
+    app: radar-defesa-civil
+type: Opaque
+stringData:
+  # These values should be overridden per environment
+  # Use external secret management in production (e.g., HashiCorp Vault, AWS Secrets Manager)
+  DATABASE_URL: "postgresql://radar:CHANGE_ME@postgres:5432/radar_defesa_civil"
+  REDIS_URL: "redis://:CHANGE_ME@redis:6379"
+  JWT_SECRET: "CHANGE_ME_TO_SECURE_SECRET"
+  JWT_REFRESH_SECRET: "CHANGE_ME_TO_SECURE_SECRET"
+  MINIO_ACCESS_KEY: "CHANGE_ME"
+  MINIO_SECRET_KEY: "CHANGE_ME"

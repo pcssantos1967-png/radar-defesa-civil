@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radar-processor
+  labels:
+    app: radar-defesa-civil
+    component: radar-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: radar-defesa-civil
+      component: radar-processor
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: radar-defesa-civil
+        component: radar-processor
+    spec:
+      containers:
+        - name: radar-processor
+          image: ${CONTAINER_REGISTRY}/radar-processor:${IMAGE_TAG}
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: radar-config
+            - secretRef:
+                name: radar-secrets
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          volumeMounts:
+            - name: radar-data
+              mountPath: /data/radar
+            - name: tiles-data
+              mountPath: /data/tiles
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: radar-data
+          persistentVolumeClaim:
+            claimName: radar-data-pvc
+        - name: tiles-data
+          persistentVolumeClaim:
+            claimName: tiles-data-pvc
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: radar-data-pvc
+  labels:
+    app: radar-defesa-civil
+    component: radar-processor
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tiles-data-pvc
+  labels:
+    app: radar-defesa-civil
+    component: radar-processor
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard

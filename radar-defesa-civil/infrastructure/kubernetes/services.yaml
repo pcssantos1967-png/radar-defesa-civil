@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: radar-api
+  labels:
+    app: radar-defesa-civil
+    component: api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3001
+      targetPort: 3001
+      protocol: TCP
+      name: http
+  selector:
+    app: radar-defesa-civil
+    component: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radar-web
+  labels:
+    app: radar-defesa-civil
+    component: web
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    app: radar-defesa-civil
+    component: web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radar-processor
+  labels:
+    app: radar-defesa-civil
+    component: radar-processor
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: radar-defesa-civil
+    component: radar-processor

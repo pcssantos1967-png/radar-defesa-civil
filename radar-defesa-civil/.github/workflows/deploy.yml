@@ -1,0 +1,164 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8'
+
+jobs:
+  determine-environment:
+    name: Determine Environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - name: Set environment
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    name: Deploy to ${{ needs.determine-environment.outputs.environment }}
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.CONTAINER_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.CONTAINER_REGISTRY }}/radar-api:${{ github.sha }}
+            ${{ secrets.CONTAINER_REGISTRY }}/radar-api:${{ needs.determine-environment.outputs.environment }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.CONTAINER_REGISTRY }}/radar-web:${{ github.sha }}
+            ${{ secrets.CONTAINER_REGISTRY }}/radar-web:${{ needs.determine-environment.outputs.environment }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.API_URL }}
+            NEXT_PUBLIC_WS_URL=${{ secrets.WS_URL }}
+
+      - name: Build and push Radar Processor image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/radar-processor/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.CONTAINER_REGISTRY }}/radar-processor:${{ github.sha }}
+            ${{ secrets.CONTAINER_REGISTRY }}/radar-processor:${{ needs.determine-environment.outputs.environment }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > kubeconfig.yaml
+          echo "KUBECONFIG=$(pwd)/kubeconfig.yaml" >> $GITHUB_ENV
+
+      - name: Deploy to Kubernetes
+        run: |
+          export IMAGE_TAG=${{ github.sha }}
+          export ENVIRONMENT=${{ needs.determine-environment.outputs.environment }}
+
+          # Apply namespace
+          kubectl apply -f infrastructure/kubernetes/namespace.yaml
+
+          # Apply ConfigMaps and Secrets
+          kubectl apply -f infrastructure/kubernetes/configmap.yaml -n radar-$ENVIRONMENT
+
+          # Apply deployments with image tag substitution
+          envsubst < infrastructure/kubernetes/api-deployment.yaml | kubectl apply -f - -n radar-$ENVIRONMENT
+          envsubst < infrastructure/kubernetes/web-deployment.yaml | kubectl apply -f - -n radar-$ENVIRONMENT
+          envsubst < infrastructure/kubernetes/radar-processor-deployment.yaml | kubectl apply -f - -n radar-$ENVIRONMENT
+
+          # Apply services and ingress
+          kubectl apply -f infrastructure/kubernetes/services.yaml -n radar-$ENVIRONMENT
+          kubectl apply -f infrastructure/kubernetes/ingress.yaml -n radar-$ENVIRONMENT
+
+          # Wait for rollout
+          kubectl rollout status deployment/radar-api -n radar-$ENVIRONMENT --timeout=300s
+          kubectl rollout status deployment/radar-web -n radar-$ENVIRONMENT --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          ENVIRONMENT=${{ needs.determine-environment.outputs.environment }}
+          kubectl get pods -n radar-$ENVIRONMENT
+          kubectl get services -n radar-$ENVIRONMENT
+
+      - name: Run database migrations
+        run: |
+          ENVIRONMENT=${{ needs.determine-environment.outputs.environment }}
+          kubectl exec -n radar-$ENVIRONMENT deployment/radar-api -- pnpm db:migrate
+
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [determine-environment, deploy]
+    if: always()
+    steps:
+      - name: Send notification
+        run: |
+          STATUS="${{ needs.deploy.result }}"
+          ENVIRONMENT="${{ needs.determine-environment.outputs.environment }}"
+
+          if [ "$STATUS" == "success" ]; then
+            echo "Deployment to $ENVIRONMENT succeeded!"
+          else
+            echo "Deployment to $ENVIRONMENT failed!"
+          fi
+
+          # Add Slack/Teams/Email notification here
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"Deployment to '"$ENVIRONMENT"': '"$STATUS"'"}' \
+          #   ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -13,6 +13,7 @@ import {
   Users,
   FileText,
   Zap,
+  BarChart3,
 } from 'lucide-react';
 
 const navItems = [
@@ -45,6 +46,11 @@ const navItems = [
     label: 'Nowcasting',
     href: '/nowcasting',
     icon: Zap,
+  },
+  {
+    label: 'Estatísticas',
+    href: '/estatisticas',
+    icon: BarChart3,
   },
   {
     label: 'Relatórios',

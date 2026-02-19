@@ -1,0 +1,14 @@
+apiVersion: 1
+
+providers:
+  - name: 'Radar Defesa Civil'
+    orgId: 1
+    folder: 'Radar Defesa Civil'
+    folderUid: 'radar'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true

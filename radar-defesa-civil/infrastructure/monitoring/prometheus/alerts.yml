@@ -1,0 +1,261 @@
+groups:
+  # Infrastructure Alerts
+  - name: infrastructure
+    rules:
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% (current: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: CriticalCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 95% (current: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 80% (current: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: CriticalMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 95% (current: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) * 100 < 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk space is below 20% on {{ $labels.mountpoint }} (current: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) * 100 < 10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical disk space on {{ $labels.instance }}"
+          description: "Disk space is below 10% on {{ $labels.mountpoint }} (current: {{ $value | printf \"%.1f\" }}%)"
+
+  # Container Alerts
+  - name: containers
+    rules:
+      - alert: ContainerDown
+        expr: absent(container_last_seen{name=~"radar-.*"}) or (time() - container_last_seen{name=~"radar-.*"}) > 60
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container {{ $labels.name }} is down"
+          description: "Container {{ $labels.name }} has not been seen for more than 1 minute"
+
+      - alert: ContainerHighCPU
+        expr: (rate(container_cpu_usage_seconds_total{name=~"radar-.*"}[5m]) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage in container {{ $labels.name }}"
+          description: "Container {{ $labels.name }} CPU usage is above 80% (current: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: ContainerHighMemory
+        expr: (container_memory_usage_bytes{name=~"radar-.*"} / container_spec_memory_limit_bytes{name=~"radar-.*"}) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage in container {{ $labels.name }}"
+          description: "Container {{ $labels.name }} memory usage is above 80% of limit"
+
+      - alert: ContainerRestartLoop
+        expr: increase(container_restart_count{name=~"radar-.*"}[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} restart loop"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last hour"
+
+  # Database Alerts
+  - name: database
+    rules:
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL database is not responding"
+
+      - alert: PostgreSQLHighConnections
+        expr: (pg_stat_activity_count / pg_settings_max_connections) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High PostgreSQL connections"
+          description: "PostgreSQL connections are above 80% of max (current: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: PostgreSQLSlowQueries
+        expr: rate(pg_stat_activity_max_tx_duration{state="active"}[5m]) > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL slow queries detected"
+          description: "Queries running longer than 60 seconds detected"
+
+      - alert: PostgreSQLDeadlocks
+        expr: increase(pg_stat_database_deadlocks[1h]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL deadlocks detected"
+          description: "{{ $value }} deadlocks detected in the last hour"
+
+  # Redis Alerts
+  - name: redis
+    rules:
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache is not responding"
+
+      - alert: RedisHighMemory
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is above 80% (current: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: RedisHighConnections
+        expr: redis_connected_clients > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Redis connections"
+          description: "Redis has more than 100 connected clients (current: {{ $value }})"
+
+  # Application Alerts
+  - name: application
+    rules:
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="radar-api"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency"
+          description: "95th percentile API latency is above 1 second (current: {{ $value | printf \"%.2f\" }}s)"
+
+      - alert: APIHighErrorRate
+        expr: (sum(rate(http_requests_total{job="radar-api",status=~"5.."}[5m])) / sum(rate(http_requests_total{job="radar-api"}[5m]))) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API error rate"
+          description: "API error rate is above 5% (current: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: APICriticalErrorRate
+        expr: (sum(rate(http_requests_total{job="radar-api",status=~"5.."}[5m])) / sum(rate(http_requests_total{job="radar-api"}[5m]))) * 100 > 20
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical API error rate"
+          description: "API error rate is above 20% (current: {{ $value | printf \"%.1f\" }}%)"
+
+      - alert: APIDown
+        expr: up{job="radar-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Radar API is down"
+          description: "The Radar API service is not responding"
+
+      - alert: WebDown
+        expr: up{job="radar-web"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Radar Web is down"
+          description: "The Radar Web frontend is not responding"
+
+      - alert: RadarProcessorDown
+        expr: up{job="radar-processor"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Radar Processor is down"
+          description: "The Radar Processor service is not responding"
+
+  # Business Alerts
+  - name: business
+    rules:
+      - alert: HighActiveAlerts
+        expr: radar_alerts_active_total > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of active alerts"
+          description: "There are {{ $value }} active alerts in the system"
+
+      - alert: CriticalAlertsUnacknowledged
+        expr: radar_alerts_unacknowledged_total{severity="max_alert"} > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical alerts unacknowledged"
+          description: "{{ $value }} critical alerts have not been acknowledged for 15+ minutes"
+
+      - alert: RadarDataStale
+        expr: (time() - radar_last_scan_timestamp) > 600
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Radar data is stale"
+          description: "No new radar data received in the last 10 minutes"
+
+      - alert: RadarDataCriticallyStale
+        expr: (time() - radar_last_scan_timestamp) > 1800
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Radar data is critically stale"
+          description: "No new radar data received in the last 30 minutes"

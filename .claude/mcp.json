@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "comentario": "Configure seus servidores MCP aqui. Cada servidor adiciona novas ferramentas ao Claude.",
+    "exemplo-futuro": {
+      "_comentario": "Este é um exemplo desativado. Para ativar um MCP, remova o underscore do comando.",
+      "_command": "npx",
+      "_args": ["-y", "@anthropic/mcp-server-exemplo"]
+    }
+  }
+}

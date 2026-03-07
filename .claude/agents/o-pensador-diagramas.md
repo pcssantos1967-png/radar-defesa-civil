@@ -331,4 +331,444 @@ Este conjunto de diagramas integra:
 
 ---
 
+## 7. ARQUITETURA DE SOFTWARE - Visao Geral do Sistema
+
+```mermaid
+flowchart TB
+    subgraph CLIENTS["CAMADA DE CLIENTES"]
+        WEB["Web App<br/>React/Vue/Angular"]
+        MOBILE["Mobile App<br/>iOS/Android"]
+        DESKTOP["Desktop App<br/>Electron"]
+        CLI["CLI Tool"]
+    end
+
+    subgraph GATEWAY["CAMADA DE ENTRADA"]
+        LB["Load Balancer<br/>nginx/HAProxy"]
+        CDN["CDN<br/>CloudFlare/Fastly"]
+        WAF["WAF<br/>Web Application Firewall"]
+        API_GW["API Gateway<br/>Kong/AWS API GW"]
+    end
+
+    subgraph SERVICES["CAMADA DE SERVICOS"]
+        AUTH["Auth Service<br/>JWT/OAuth2"]
+        USER["User Service"]
+        BUSINESS["Business Logic<br/>Core Domain"]
+        NOTIFY["Notification Service<br/>Email/SMS/Push"]
+        SEARCH["Search Service<br/>Elasticsearch"]
+    end
+
+    subgraph DATA["CAMADA DE DADOS"]
+        DB_PRIMARY["Database Primary<br/>PostgreSQL/MySQL"]
+        DB_REPLICA["Database Replica<br/>Read Replicas"]
+        CACHE["Cache Layer<br/>Redis/Memcached"]
+        QUEUE["Message Queue<br/>RabbitMQ/Kafka"]
+        STORAGE["Object Storage<br/>S3/MinIO"]
+    end
+
+    subgraph INFRA["INFRAESTRUTURA"]
+        MONITOR["Monitoring<br/>Prometheus/Grafana"]
+        LOG["Logging<br/>ELK Stack"]
+        TRACE["Tracing<br/>Jaeger/Zipkin"]
+        CI_CD["CI/CD<br/>GitHub Actions"]
+    end
+
+    WEB --> CDN
+    MOBILE --> LB
+    DESKTOP --> LB
+    CLI --> API_GW
+
+    CDN --> WAF
+    LB --> WAF
+    WAF --> API_GW
+
+    API_GW --> AUTH
+    API_GW --> USER
+    API_GW --> BUSINESS
+    API_GW --> SEARCH
+
+    AUTH --> CACHE
+    USER --> DB_PRIMARY
+    BUSINESS --> DB_PRIMARY
+    BUSINESS --> QUEUE
+    QUEUE --> NOTIFY
+    SEARCH --> DB_REPLICA
+
+    DB_PRIMARY --> DB_REPLICA
+    NOTIFY --> STORAGE
+
+    SERVICES --> MONITOR
+    SERVICES --> LOG
+    SERVICES --> TRACE
+
+    classDef clientStyle fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
+    classDef gatewayStyle fill:#FFF9C4,stroke:#F57C00,stroke-width:2px
+    classDef serviceStyle fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    classDef dataStyle fill:#FFCCBC,stroke:#D84315,stroke-width:2px
+    classDef infraStyle fill:#E1BEE7,stroke:#7B1FA2,stroke-width:2px
+
+    class WEB,MOBILE,DESKTOP,CLI clientStyle
+    class LB,CDN,WAF,API_GW gatewayStyle
+    class AUTH,USER,BUSINESS,NOTIFY,SEARCH serviceStyle
+    class DB_PRIMARY,DB_REPLICA,CACHE,QUEUE,STORAGE dataStyle
+    class MONITOR,LOG,TRACE,CI_CD infraStyle
+```
+
+---
+
+## 8. ARQUITETURA MICROSERVICES
+
+```mermaid
+flowchart LR
+    subgraph FRONTEND["FRONTEND"]
+        SPA["SPA<br/>Single Page App"]
+        BFF["BFF<br/>Backend for Frontend"]
+    end
+
+    subgraph CORE["CORE SERVICES"]
+        direction TB
+        US["User Service"]
+        PS["Product Service"]
+        OS["Order Service"]
+        PAY["Payment Service"]
+        INV["Inventory Service"]
+    end
+
+    subgraph SUPPORT["SUPPORT SERVICES"]
+        direction TB
+        AUTH["Auth Service"]
+        NOTIF["Notification"]
+        ANALYTICS["Analytics"]
+    end
+
+    subgraph INFRA["INFRASTRUCTURE"]
+        direction TB
+        GATEWAY["API Gateway"]
+        REGISTRY["Service Registry<br/>Consul/Eureka"]
+        CONFIG["Config Server"]
+        MQ["Message Broker<br/>Kafka/RabbitMQ"]
+    end
+
+    subgraph DATA["DATA STORES"]
+        direction TB
+        DB1[("Users DB")]
+        DB2[("Products DB")]
+        DB3[("Orders DB")]
+        REDIS[("Redis Cache")]
+    end
+
+    SPA --> BFF
+    BFF --> GATEWAY
+    GATEWAY --> REGISTRY
+
+    GATEWAY --> US
+    GATEWAY --> PS
+    GATEWAY --> OS
+    GATEWAY --> PAY
+
+    US --> DB1
+    PS --> DB2
+    OS --> DB3
+    OS --> MQ
+
+    MQ --> INV
+    MQ --> NOTIF
+    MQ --> ANALYTICS
+
+    US --> REDIS
+    PS --> REDIS
+
+    AUTH --> REGISTRY
+    CONFIG --> REGISTRY
+
+    style FRONTEND fill:#E3F2FD
+    style CORE fill:#C8E6C9
+    style SUPPORT fill:#FFF9C4
+    style INFRA fill:#FFCCBC
+    style DATA fill:#E1BEE7
+```
+
+---
+
+## 9. ARQUITETURA HEXAGONAL (Ports & Adapters)
+
+```mermaid
+flowchart TB
+    subgraph ADAPTERS_IN["ADAPTERS - INPUT (Driving)"]
+        REST["REST API<br/>Controller"]
+        GRAPHQL["GraphQL<br/>Resolver"]
+        CLI["CLI<br/>Commands"]
+        EVENTS_IN["Event Consumer<br/>Message Handler"]
+    end
+
+    subgraph PORTS_IN["PORTS - INPUT"]
+        USE_CASES["Use Cases<br/>Application Services"]
+    end
+
+    subgraph DOMAIN["DOMAIN (Core)"]
+        ENTITIES["Entities"]
+        VALUE_OBJ["Value Objects"]
+        DOMAIN_SVC["Domain Services"]
+        EVENTS["Domain Events"]
+        REPO_INT["Repository Interfaces"]
+    end
+
+    subgraph PORTS_OUT["PORTS - OUTPUT"]
+        REPO_PORT["Repository Port"]
+        EVENT_PORT["Event Publisher Port"]
+        EXTERNAL_PORT["External Service Port"]
+    end
+
+    subgraph ADAPTERS_OUT["ADAPTERS - OUTPUT (Driven)"]
+        DB_ADAPTER["Database Adapter<br/>PostgreSQL/MongoDB"]
+        EVENT_ADAPTER["Event Publisher<br/>Kafka/RabbitMQ"]
+        HTTP_ADAPTER["HTTP Client<br/>External APIs"]
+        CACHE_ADAPTER["Cache Adapter<br/>Redis"]
+    end
+
+    REST --> USE_CASES
+    GRAPHQL --> USE_CASES
+    CLI --> USE_CASES
+    EVENTS_IN --> USE_CASES
+
+    USE_CASES --> ENTITIES
+    USE_CASES --> DOMAIN_SVC
+    ENTITIES --> VALUE_OBJ
+    DOMAIN_SVC --> EVENTS
+    DOMAIN_SVC --> REPO_INT
+
+    REPO_INT --> REPO_PORT
+    EVENTS --> EVENT_PORT
+    DOMAIN_SVC --> EXTERNAL_PORT
+
+    REPO_PORT --> DB_ADAPTER
+    REPO_PORT --> CACHE_ADAPTER
+    EVENT_PORT --> EVENT_ADAPTER
+    EXTERNAL_PORT --> HTTP_ADAPTER
+
+    classDef adapterIn fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
+    classDef portIn fill:#BBDEFB,stroke:#1976D2,stroke-width:2px
+    classDef domain fill:#C8E6C9,stroke:#388E3C,stroke-width:3px
+    classDef portOut fill:#FFE0B2,stroke:#F57C00,stroke-width:2px
+    classDef adapterOut fill:#FFCCBC,stroke:#D84315,stroke-width:2px
+
+    class REST,GRAPHQL,CLI,EVENTS_IN adapterIn
+    class USE_CASES portIn
+    class ENTITIES,VALUE_OBJ,DOMAIN_SVC,EVENTS,REPO_INT domain
+    class REPO_PORT,EVENT_PORT,EXTERNAL_PORT portOut
+    class DB_ADAPTER,EVENT_ADAPTER,HTTP_ADAPTER,CACHE_ADAPTER adapterOut
+```
+
+---
+
+## 10. ARQUITETURA C4 MODEL - Context Diagram
+
+```mermaid
+flowchart TB
+    subgraph EXTERNAL["SISTEMAS EXTERNOS"]
+        PAYMENT_GW["Payment Gateway<br/>Stripe/PayPal"]
+        EMAIL_SVC["Email Service<br/>SendGrid/SES"]
+        SMS_SVC["SMS Service<br/>Twilio"]
+        ANALYTICS["Analytics<br/>Google Analytics"]
+    end
+
+    subgraph USERS["USUARIOS"]
+        CUSTOMER["Customer<br/>Usa o sistema para<br/>fazer compras"]
+        ADMIN["Admin<br/>Gerencia produtos<br/>e pedidos"]
+        SUPPORT["Support Team<br/>Atende clientes"]
+    end
+
+    SYSTEM["SISTEMA PRINCIPAL<br/>E-Commerce Platform<br/><br/>Permite aos clientes<br/>navegar, comprar e<br/>acompanhar pedidos"]
+
+    CUSTOMER -->|"Navega, compra,<br/>acompanha pedidos"| SYSTEM
+    ADMIN -->|"Gerencia catalogo,<br/>processa pedidos"| SYSTEM
+    SUPPORT -->|"Consulta pedidos,<br/>resolve problemas"| SYSTEM
+
+    SYSTEM -->|"Processa pagamentos"| PAYMENT_GW
+    SYSTEM -->|"Envia emails<br/>transacionais"| EMAIL_SVC
+    SYSTEM -->|"Envia SMS<br/>de confirmacao"| SMS_SVC
+    SYSTEM -->|"Envia eventos<br/>de tracking"| ANALYTICS
+
+    classDef userStyle fill:#1168BD,stroke:#0B4884,color:#fff,stroke-width:2px
+    classDef systemStyle fill:#438DD5,stroke:#2E6295,color:#fff,stroke-width:3px
+    classDef externalStyle fill:#999999,stroke:#6B6B6B,color:#fff,stroke-width:2px
+
+    class CUSTOMER,ADMIN,SUPPORT userStyle
+    class SYSTEM systemStyle
+    class PAYMENT_GW,EMAIL_SVC,SMS_SVC,ANALYTICS externalStyle
+```
+
+---
+
+## 11. ARQUITETURA CLEAN ARCHITECTURE (Camadas)
+
+```mermaid
+flowchart TB
+    subgraph LAYER1["CAMADA 1: FRAMEWORKS & DRIVERS"]
+        direction LR
+        WEB_FW["Web Framework<br/>Express/FastAPI"]
+        DB_DRV["Database Driver<br/>pg/mongoose"]
+        UI["UI Framework<br/>React/Vue"]
+        EXTERNAL["External APIs"]
+    end
+
+    subgraph LAYER2["CAMADA 2: INTERFACE ADAPTERS"]
+        direction LR
+        CONTROLLERS["Controllers"]
+        PRESENTERS["Presenters"]
+        GATEWAYS["Gateways"]
+        REPOS["Repositories Impl"]
+    end
+
+    subgraph LAYER3["CAMADA 3: APPLICATION BUSINESS RULES"]
+        direction LR
+        USE_CASES["Use Cases"]
+        DTOs["DTOs"]
+        PORTS["Ports/Interfaces"]
+    end
+
+    subgraph LAYER4["CAMADA 4: ENTERPRISE BUSINESS RULES"]
+        direction LR
+        ENTITIES["Entities"]
+        VALUE_OBJ["Value Objects"]
+        DOMAIN_SVC["Domain Services"]
+    end
+
+    LAYER1 --> LAYER2
+    LAYER2 --> LAYER3
+    LAYER3 --> LAYER4
+
+    classDef layer1 fill:#FFCCBC,stroke:#D84315,stroke-width:2px
+    classDef layer2 fill:#FFF9C4,stroke:#F57C00,stroke-width:2px
+    classDef layer3 fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    classDef layer4 fill:#BBDEFB,stroke:#1976D2,stroke-width:3px
+
+    class WEB_FW,DB_DRV,UI,EXTERNAL layer1
+    class CONTROLLERS,PRESENTERS,GATEWAYS,REPOS layer2
+    class USE_CASES,DTOs,PORTS layer3
+    class ENTITIES,VALUE_OBJ,DOMAIN_SVC layer4
+```
+
+---
+
+## 12. ARQUITETURA EVENT-DRIVEN
+
+```mermaid
+flowchart LR
+    subgraph PRODUCERS["PRODUCERS"]
+        P1["Order Service"]
+        P2["User Service"]
+        P3["Payment Service"]
+    end
+
+    subgraph BROKER["EVENT BROKER"]
+        direction TB
+        TOPIC1["orders.created"]
+        TOPIC2["users.registered"]
+        TOPIC3["payments.completed"]
+        TOPIC4["inventory.updated"]
+    end
+
+    subgraph CONSUMERS["CONSUMERS"]
+        C1["Notification Service"]
+        C2["Analytics Service"]
+        C3["Inventory Service"]
+        C4["Email Service"]
+        C5["Audit Service"]
+    end
+
+    P1 -->|publish| TOPIC1
+    P2 -->|publish| TOPIC2
+    P3 -->|publish| TOPIC3
+
+    TOPIC1 -->|subscribe| C1
+    TOPIC1 -->|subscribe| C2
+    TOPIC1 -->|subscribe| C3
+
+    TOPIC2 -->|subscribe| C4
+    TOPIC2 -->|subscribe| C2
+
+    TOPIC3 -->|subscribe| C1
+    TOPIC3 -->|subscribe| C5
+
+    C3 -->|publish| TOPIC4
+    TOPIC4 -->|subscribe| C2
+
+    classDef producer fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    classDef topic fill:#FFF9C4,stroke:#F57C00,stroke-width:2px
+    classDef consumer fill:#BBDEFB,stroke:#1976D2,stroke-width:2px
+
+    class P1,P2,P3 producer
+    class TOPIC1,TOPIC2,TOPIC3,TOPIC4 topic
+    class C1,C2,C3,C4,C5 consumer
+```
+
+---
+
+## 13. MIND MAP - Arquitetura de Software
+
+```mermaid
+mindmap
+  root((ARQUITETURA<br/>DE SOFTWARE))
+    PADROES
+      Monolito
+      Microservices
+      Serverless
+      Event-Driven
+      Hexagonal
+      Clean Architecture
+    CAMADAS
+      Presentation
+      Application
+      Domain
+      Infrastructure
+      Data
+    COMUNICACAO
+      REST API
+      GraphQL
+      gRPC
+      WebSocket
+      Message Queue
+      Event Bus
+    DADOS
+      SQL Databases
+      NoSQL Databases
+      Cache Layer
+      Object Storage
+      Data Lake
+    INFRAESTRUTURA
+      Load Balancer
+      API Gateway
+      CDN
+      Container Orchestration
+      Service Mesh
+    OBSERVABILIDADE
+      Logging
+      Monitoring
+      Tracing
+      Alerting
+      Dashboards
+    SEGURANCA
+      Authentication
+      Authorization
+      Encryption
+      WAF
+      Rate Limiting
+```
+
+---
+
+## REFERENCIAS DE ARQUITETURA
+
+| Padrao | Quando Usar |
+|--------|-------------|
+| **Monolito** | MVPs, equipes pequenas, dominios simples |
+| **Microservices** | Escala, equipes independentes, dominios complexos |
+| **Hexagonal** | Testabilidade, inversao de dependencia |
+| **Clean Architecture** | Separacao de concerns, longevidade |
+| **Event-Driven** | Desacoplamento, processamento assincrono |
+| **Serverless** | Cargas variaveis, custos por uso |
+| **C4 Model** | Documentacao, comunicacao com stakeholders |
+
+---
+
 *Arquivo gerado por O Pensador v5.0 - Arquiteto do Pensamento Profundo*
